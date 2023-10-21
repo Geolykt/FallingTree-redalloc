@@ -4,4 +4,7 @@ public class TreeBreakingException extends Exception{
 	public TreeBreakingException(Throwable throwable){
 		super(throwable);
 	}
+	public TreeBreakingException(){
+		super();
+	}
 }

@@ -1,6 +1,8 @@
 package fr.raksrinana.fallingtree.fabric.event;
 
 import fr.raksrinana.fallingtree.common.FallingTreeCommon;
+import fr.raksrinana.fallingtree.common.config.enums.BreakMode;
+import fr.raksrinana.fallingtree.common.tree.BreakTreeResult;
 import fr.raksrinana.fallingtree.common.tree.exception.NoTreeFoundException;
 import fr.raksrinana.fallingtree.common.tree.exception.NotServerException;
 import fr.raksrinana.fallingtree.common.tree.exception.PlayerNotInRightState;
@@ -29,19 +31,21 @@ public class BlockBreakListener implements PlayerBlockBreakEvents.Before{
 		var wrappedPlayer = new PlayerWrapper(player);
 		var wrappedLevel = new LevelWrapper(level);
 		var wrappedPos = new BlockPosWrapper(blockPos);
-		
-		try{
-			var result = mod.getTreeHandler().breakTree(wrappedLevel, wrappedPlayer, wrappedPos);
-			return switch(result.breakMode()){
-				case INSTANTANEOUS -> !result.shouldCancel();
-				case SHIFT_DOWN -> false;
-			};
-		}
-		catch(TreeBreakingNotEnabledException | PlayerNotInRightState | TreeBreakingException | NoTreeFoundException | NotServerException e){
-			return true;
-		}
-		catch(ToolUseForcedException e){
+
+		int result = mod.getTreeHandler().fastBreakTree(wrappedLevel, wrappedPlayer, wrappedPos);
+		if ((result & BreakTreeResult.FLAG_ERROR) == 0) {
+			BreakMode mode = BreakMode.ofOrdinal(result & ~BreakTreeResult.FLAG_CANCELLED);
+			if (mode == BreakMode.INSTANTANEOUS) {
+				return (result & BreakTreeResult.FLAG_CANCELLED) == 0;
+			} else if (mode == BreakMode.SHIFT_DOWN) {
+				return false;
+			} else {
+				throw new AssertionError();
+			}
+		} else if ((result & ~(BreakTreeResult.FLAG_CANCELLED | BreakTreeResult.FLAG_ERROR)) == BreakTreeResult.ERROR_ABSENT_TOOL) {
 			return false;
+		} else {
+			return true;
 		}
 	}
 }

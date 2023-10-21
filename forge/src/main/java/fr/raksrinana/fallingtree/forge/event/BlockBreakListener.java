@@ -1,12 +1,8 @@
 package fr.raksrinana.fallingtree.forge.event;
 
 import fr.raksrinana.fallingtree.common.FallingTreeCommon;
-import fr.raksrinana.fallingtree.common.tree.exception.NoTreeFoundException;
-import fr.raksrinana.fallingtree.common.tree.exception.NotServerException;
-import fr.raksrinana.fallingtree.common.tree.exception.PlayerNotInRightState;
-import fr.raksrinana.fallingtree.common.tree.exception.ToolUseForcedException;
-import fr.raksrinana.fallingtree.common.tree.exception.TreeBreakingException;
-import fr.raksrinana.fallingtree.common.tree.exception.TreeBreakingNotEnabledException;
+import fr.raksrinana.fallingtree.common.config.enums.BreakMode;
+import fr.raksrinana.fallingtree.common.tree.BreakTreeResult;
 import fr.raksrinana.fallingtree.forge.common.wrapper.BlockPosWrapper;
 import fr.raksrinana.fallingtree.forge.common.wrapper.LevelWrapper;
 import fr.raksrinana.fallingtree.forge.common.wrapper.PlayerWrapper;
@@ -56,20 +52,19 @@ public class BlockBreakListener{
 		var wrappedPlayer = new PlayerWrapper(event.getPlayer());
 		var wrappedLevel = new LevelWrapper(event.getLevel());
 		var wrappedPos = new BlockPosWrapper(event.getPos());
-		
-		try{
-			var result = mod.getTreeHandler().breakTree(wrappedLevel, wrappedPlayer, wrappedPos);
-			if(event.isCancelable()){
-				switch(result.breakMode()){
-					case INSTANTANEOUS -> event.setCanceled(result.shouldCancel());
-					case SHIFT_DOWN -> event.setCanceled(true);
-				}
+
+		int result = mod.getTreeHandler().fastBreakTree(wrappedLevel, wrappedPlayer, wrappedPos);
+		if ((result & BreakTreeResult.FLAG_ERROR) == 0) {
+			BreakMode mode = BreakMode.ofOrdinal(result & ~BreakTreeResult.FLAG_CANCELLED);
+			if (mode == BreakMode.INSTANTANEOUS) {
+				event.setCanceled((result & BreakTreeResult.FLAG_CANCELLED) != 0);
+			} else if (mode == BreakMode.SHIFT_DOWN) {
+				event.setCanceled(true);
+			} else {
+				throw new AssertionError();
 			}
-		}
-		catch(TreeBreakingNotEnabledException | PlayerNotInRightState | TreeBreakingException | NoTreeFoundException | NotServerException ignored){
-		}
-		catch(ToolUseForcedException e){
-			if(event.isCancelable()){
+		} else if ((result & ~(BreakTreeResult.FLAG_CANCELLED | BreakTreeResult.FLAG_ERROR)) == BreakTreeResult.ERROR_ABSENT_TOOL) {
+			if (event.isCancelable()) {
 				event.setCanceled(true);
 			}
 		}

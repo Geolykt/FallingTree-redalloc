@@ -35,44 +35,50 @@ public class TreeHandler{
 	@NotNull
 	private final FallingTreeCommon<?> mod;
 	private final Map<UUID, CacheSpeed> speedCache = new ConcurrentHashMap<>();
-	
+
 	@NotNull
-	public BreakTreeResult breakTree(@NotNull ILevel level, @NotNull IPlayer player, @NotNull IBlockPos blockPos) throws TreeBreakingNotEnabledException, PlayerNotInRightState, ToolUseForcedException, TreeBreakingException, NoTreeFoundException, NotServerException{
+	public int fastBreakTree(@NotNull ILevel level, @NotNull IPlayer player, @NotNull IBlockPos blockPos) {
 		if(!level.isServer()){
-			throw new NotServerException();
+			return BreakTreeResult.FLAG_ERROR | BreakTreeResult.ERROR_NOT_SERVER;
 		}
 		if(!mod.getConfiguration().getTrees().isTreeBreaking()){
-			throw new TreeBreakingNotEnabledException();
+			return BreakTreeResult.FLAG_ERROR | BreakTreeResult.ERROR_NOT_ENABLED;
 		}
 
 		if(!mod.checkForceToolUsage(player, level, blockPos)){
 			mod.notifyPlayer(player, mod.translate("chat.fallingtree.force_tool_usage", mod.getConfiguration().getTrees().getMaxScanSize()));
-			throw new ToolUseForcedException();
+			return BreakTreeResult.FLAG_ERROR | BreakTreeResult.ERROR_ABSENT_TOOL;
 		}
-		
+
 		if(!mod.isPlayerInRightState(player)){
-			throw new PlayerNotInRightState();
+			return BreakTreeResult.FLAG_ERROR | BreakTreeResult.ERROR_WRONG_PLAYER_STATE;
 		}
-		
+
 		try{
 			var treeOptional = mod.getTreeBuilder().getTree(player, level, blockPos);
 			if(treeOptional.isEmpty()){
-				throw new NoTreeFoundException();
+				return BreakTreeResult.FLAG_ERROR | BreakTreeResult.ERROR_ABSENT_TREE;
 			}
-			
+
 			var tree = treeOptional.get();
 			var breakMode = getBreakMode(player.getMainHandItem());
 			var result = getBreakingHandler(breakMode).breakTree(player, tree);
-			return new BreakTreeResult(!result, breakMode);
+			return (result ? 0 : BreakTreeResult.FLAG_CANCELLED) | breakMode.ordinal();
 		}
 		catch(TreeTooBigException e){
 			mod.notifyPlayer(player, mod.translate("chat.fallingtree.tree_too_big", mod.getConfiguration().getTrees().getMaxScanSize()));
-			throw new TreeBreakingException(e);
+			return BreakTreeResult.ERROR_TREE_TOO_LARGE;
 		}
 		catch(BreakTreeTooBigException e){
 			mod.notifyPlayer(player, mod.translate("chat.fallingtree.break_tree_too_big", mod.getConfiguration().getTrees().getMaxSize()));
-			throw new TreeBreakingException(e);
+			return BreakTreeResult.ERROR_TREE_TOO_LARGE;
 		}
+	}
+
+	@NotNull
+	@Deprecated
+	public BreakTreeResult breakTree(@NotNull ILevel level, @NotNull IPlayer player, @NotNull IBlockPos blockPos) throws TreeBreakingNotEnabledException, PlayerNotInRightState, ToolUseForcedException, TreeBreakingException, NoTreeFoundException, NotServerException{
+		return BreakTreeResult.decode(this.fastBreakTree(level, player, blockPos));
 	}
 	
 	@NotNull
